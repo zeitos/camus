@@ -14,7 +14,7 @@ import kafka.server.KafkaServer;
 import kafka.utils.Time;
 import kafka.utils.Utils;
 
-import org.apache.zookeeper.server.NIOServerCnxn;
+import org.apache.zookeeper.server.NIOServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
 
@@ -117,7 +117,7 @@ public class KafkaCluster {
     private final int port;
     private final File snapshotDir;
     private final File logDir;
-    private final NIOServerCnxn.Factory factory;
+    private final NIOServerCnxnFactory factory;
 
     /**
      * Constructs an embedded Zookeeper instance.
@@ -130,8 +130,8 @@ public class KafkaCluster {
       this.port = getAvailablePort();
       this.snapshotDir = getTempDir();
       this.logDir = getTempDir();
-      this.factory = new NIOServerCnxn.Factory(new InetSocketAddress("localhost", port), 1024);
-
+      this.factory = new NIOServerCnxnFactory();
+      this.factory.configure(new InetSocketAddress("localhost", port), 1024);
       try {
         int tickTime = 500;
         factory.startup(new ZooKeeperServer(snapshotDir, logDir, tickTime));
