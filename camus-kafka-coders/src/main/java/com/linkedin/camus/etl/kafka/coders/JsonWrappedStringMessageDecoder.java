@@ -17,7 +17,8 @@ import java.util.Properties;
 
 
 /**
- * MessageDecoder class that will convert the payload into a JSON object,
+ * MessageDecoder class that will convert the payload, and key into a JSON object,
+ * wrap the key and payload into a wrapped JSON object, with addtional message details.
  * look for a the camus.message.timestamp.field, convert that timestamp to
  * a unix epoch long using camus.message.timestamp.format, and then set the CamusWrapper's
  * timestamp property to the record's timestamp.  If the JSON does not have
@@ -33,8 +34,8 @@ import java.util.Properties;
  * This MessageDecoder returns a CamusWrapper that works with Strings payloads,
  * since JSON data is always a String.
  */
-public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
-  private static final org.apache.log4j.Logger log = Logger.getLogger(JsonStringMessageDecoder.class);
+public class JsonWrappedStringMessageDecoder extends MessageDecoder<Message, String> {
+  private static final Logger log = Logger.getLogger(JsonWrappedStringMessageDecoder.class);
 
   // Property for format of timestamp in JSON timestamp field.
   public static final String CAMUS_MESSAGE_TIMESTAMP_FORMAT = "camus.message.timestamp.format";
@@ -61,35 +62,69 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
     timestampFormat = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FORMAT, DEFAULT_TIMESTAMP_FORMAT);
     timestampField = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FIELD, DEFAULT_TIMESTAMP_FIELD);
     partitionerField = props.getProperty(CAMUS_MESSAGE_OUTPUT_PARTITIONER_FIELD, DEFAULT_PARITIONER_FIELD);
+
   }
 
   @Override
   public CamusWrapper<String> decode(Message message) {
-    long timestamp = 0;
-    String payloadString;
-    String partitionField = "";
-    JsonObject jsonObject;
 
-    try {
-      payloadString = new String(message.getPayload(), "UTF-8");
-    } catch (UnsupportedEncodingException e) {
-      log.error("Unable to load UTF-8 encoding, falling back to system default", e);
-      payloadString = new String(message.getPayload());
+    JsonObject messageJsonObject = new JsonObject();
+    messageJsonObject.addProperty("topic", message.getTopic());
+    messageJsonObject.addProperty("partition", message.getPartition());
+    messageJsonObject.addProperty("offset", message.getOffset());
+    messageJsonObject.addProperty("checksum", message.getChecksum());
+
+    JsonObject payloadJsonObject = toJson(message.getPayload());
+    messageJsonObject.add("payload", payloadJsonObject);
+
+    JsonObject keyJsonObject = toJson(message.getKey());
+    messageJsonObject.add("key", keyJsonObject);
+
+    long timestamp = getTimestamp(payloadJsonObject);
+    String partition = "";
+    if (payloadJsonObject.has(partitionerField)) {
+      partition = payloadJsonObject.get(partitionerField).getAsString();
     }
+    messageJsonObject.addProperty("timestamp", timestamp);
 
-    // Parse the payload into a JsonObject.
+    return new CamusWrapper<String>(messageJsonObject.toString(), timestamp, partition);
+  }
+
+  private JsonObject toJson(byte[] bytes) {
+    if (bytes == null) return null;
+    return toJson(toString(bytes));
+  }
+
+  private JsonObject toJson(String string) {
+    if (string == null) return null;
+    JsonObject jsonObject;// Parse the payload into a JsonObject.
     try {
-      jsonObject = jsonParser.parse(payloadString.trim()).getAsJsonObject();
+      jsonObject = jsonParser.parse(string.trim()).getAsJsonObject();
     } catch (RuntimeException e) {
-      log.error("Caught exception while parsing JSON string '" + payloadString + "'.");
+      log.error("Caught exception while parsing JSON string '" + string + "'.");
       throw new RuntimeException(e);
     }
+    return jsonObject;
+  }
 
-    if (jsonObject.has(partitionerField)) {
-      partitionField = jsonObject.get(partitionerField).getAsString();
+  private String toString(byte[] bytes) {
+    if (bytes == null) return null;
+    String string;
+
+    try {
+      string = new String(bytes, "UTF-8");
+    } catch (UnsupportedEncodingException e) {
+      log.error("Unable to load UTF-8 encoding, falling back to system default", e);
+      string = new String(bytes);
     }
+    return string;
+  }
+
+  private long getTimestamp(JsonObject jsonObject) {
+    long timestamp = 0;
+
     // Attempt to read and parse the timestamp element into a long.
-    if (jsonObject.has(timestampField)) {
+    if (jsonObject != null && jsonObject.has(timestampField)) {
       // If timestampFormat is 'unix_seconds',
       // then the timestamp only needs converted to milliseconds.
       // Also support 'unix' for backwards compatibility.
@@ -136,7 +171,6 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
           + "' in JSON message, defaulting to current time.");
       timestamp = System.currentTimeMillis();
     }
-
-    return new CamusWrapper<String>(payloadString, timestamp, partitionField);
+    return timestamp;
   }
 }
