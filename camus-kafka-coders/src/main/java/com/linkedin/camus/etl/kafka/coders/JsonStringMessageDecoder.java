@@ -88,6 +88,7 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
     if (jsonObject.has(partitionerField)) {
       partitionField = jsonObject.get(partitionerField).getAsString();
     }
+    log.error("Using partitioner" + partitionField);
     // Attempt to read and parse the timestamp element into a long.
     if (jsonObject.has(timestampField)) {
       // If timestampFormat is 'unix_seconds',
