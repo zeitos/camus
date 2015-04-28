@@ -43,14 +43,16 @@ public class JsonWrappedStringMessageDecoder extends MessageDecoder<Message, Str
 
   // Property for the JSON field name of the timestamp.
   public static final String CAMUS_MESSAGE_TIMESTAMP_FIELD = "camus.message.timestamp.field";
+  public static final String CAMUS_MESSAGE_OUTPUT_PARTITIONER_FIELD = "camus.message.output.partitioner.field";
   public static final String DEFAULT_TIMESTAMP_FIELD = "timestamp";
+  public static final String DEFAULT_PARITIONER_FIELD = "type";
 
   JsonParser jsonParser = new JsonParser();
   DateTimeFormatter dateTimeParser = ISODateTimeFormat.dateTimeParser();
 
   private String timestampFormat;
   private String timestampField;
-
+  private String partitionerField;
 
   @Override
   public void init(Properties props, String topicName) {
@@ -59,6 +61,8 @@ public class JsonWrappedStringMessageDecoder extends MessageDecoder<Message, Str
 
     timestampFormat = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FORMAT, DEFAULT_TIMESTAMP_FORMAT);
     timestampField = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FIELD, DEFAULT_TIMESTAMP_FIELD);
+    partitionerField = props.getProperty(CAMUS_MESSAGE_OUTPUT_PARTITIONER_FIELD, DEFAULT_PARITIONER_FIELD);
+
   }
 
   @Override
@@ -77,10 +81,16 @@ public class JsonWrappedStringMessageDecoder extends MessageDecoder<Message, Str
     messageJsonObject.add("key", keyJsonObject);
 
     long timestamp = getTimestamp(payloadJsonObject);
-
+    String partition = "";
+    if (payloadJsonObject.has(partitionerField)) {
+      partition = payloadJsonObject.get(partitionerField).getAsString();
+    }
+    log.error("wrapped Using partitioner" + partition);
     messageJsonObject.addProperty("timestamp", timestamp);
 
-    return new CamusWrapper<String>(messageJsonObject.toString(), timestamp);
+    messageJsonObject.addProperty(partitionerField, partition);
+
+    return new CamusWrapper<String>(messageJsonObject.toString(), timestamp, partition);
   }
 
   private JsonObject toJson(byte[] bytes) {

@@ -42,13 +42,16 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
 
   // Property for the JSON field name of the timestamp.
   public static final String CAMUS_MESSAGE_TIMESTAMP_FIELD = "camus.message.timestamp.field";
+  public static final String CAMUS_MESSAGE_OUTPUT_PARTITIONER_FIELD = "camus.message.output.partitioner.field";
   public static final String DEFAULT_TIMESTAMP_FIELD = "timestamp";
+  public static final String DEFAULT_PARITIONER_FIELD = "type";
 
   JsonParser jsonParser = new JsonParser();
   DateTimeFormatter dateTimeParser = ISODateTimeFormat.dateTimeParser();
 
   private String timestampFormat;
   private String timestampField;
+  private String partitionerField;
 
   @Override
   public void init(Properties props, String topicName) {
@@ -57,12 +60,14 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
 
     timestampFormat = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FORMAT, DEFAULT_TIMESTAMP_FORMAT);
     timestampField = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FIELD, DEFAULT_TIMESTAMP_FIELD);
+    partitionerField = props.getProperty(CAMUS_MESSAGE_OUTPUT_PARTITIONER_FIELD, DEFAULT_PARITIONER_FIELD);
   }
 
   @Override
   public CamusWrapper<String> decode(Message message) {
     long timestamp = 0;
     String payloadString;
+    String partitionField = "";
     JsonObject jsonObject;
 
     try {
@@ -80,6 +85,10 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
       throw new RuntimeException(e);
     }
 
+    if (jsonObject.has(partitionerField)) {
+      partitionField = jsonObject.get(partitionerField).getAsString();
+    }
+    log.error("Using partitioner" + partitionField);
     // Attempt to read and parse the timestamp element into a long.
     if (jsonObject.has(timestampField)) {
       // If timestampFormat is 'unix_seconds',
@@ -129,6 +138,6 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
       timestamp = System.currentTimeMillis();
     }
 
-    return new CamusWrapper<String>(payloadString, timestamp);
+    return new CamusWrapper<String>(payloadString, timestamp, partitionField);
   }
 }
