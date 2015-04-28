@@ -11,7 +11,6 @@ dependencies {
 	compile spec.external.paranamer
 	compile spec.external.snappyJava
 	compile spec.external.junit
-	compile spec.external.easymock
 }
 
 classification="library"

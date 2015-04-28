@@ -16,7 +16,6 @@ public class CamusWrapper<R> {
     private R record;
     private long timestamp;
     private MapWritable partitionMap;
-    private final String outputPrefix;
 
     public CamusWrapper(R record) {
         this(record, System.currentTimeMillis());
@@ -25,20 +24,11 @@ public class CamusWrapper<R> {
     public CamusWrapper(R record, long timestamp) {
         this(record, timestamp, "unknown_server", "unknown_service");
     }
-    public CamusWrapper(R record, long timestamp, String prefix) {
-        this(record, timestamp, "unknown_server", "unknown_service", prefix);
-    }
 
     public CamusWrapper(R record, long timestamp, String server, String service) {
-        this(record, timestamp, server, service, "");
-    }
-
-    public CamusWrapper(R record, long timestamp, String server, String service,
-                        String prefix) {
         this.record = record;
         this.timestamp = timestamp;
         this.partitionMap = new MapWritable();
-        this.outputPrefix = prefix;
         partitionMap.put(new Text("server"), new Text(server));
         partitionMap.put(new Text("service"), new Text(service));
     }
@@ -81,7 +71,4 @@ public class CamusWrapper<R> {
         return partitionMap;
     }
 
-    public String getOutputPrefix() {
-        return outputPrefix;
-    }
 }

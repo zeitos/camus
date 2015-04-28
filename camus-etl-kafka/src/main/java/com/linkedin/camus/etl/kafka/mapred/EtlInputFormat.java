@@ -1,12 +1,10 @@
 package com.linkedin.camus.etl.kafka.mapred;
 
-import com.google.common.base.Strings;
 import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.etl.kafka.CamusJob;
 import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
 import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
-import com.linkedin.camus.etl.kafka.common.EmailClient;
 import com.linkedin.camus.etl.kafka.common.EtlKey;
 import com.linkedin.camus.etl.kafka.common.EtlRequest;
 import com.linkedin.camus.etl.kafka.common.LeaderInfo;
@@ -27,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import kafka.api.PartitionOffsetRequestInfo;
@@ -54,6 +53,17 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.log4j.Logger;
+
+import com.linkedin.camus.coders.CamusWrapper;
+import com.linkedin.camus.coders.MessageDecoder;
+import com.linkedin.camus.etl.kafka.CamusJob;
+import com.linkedin.camus.etl.kafka.coders.KafkaAvroMessageDecoder;
+import com.linkedin.camus.etl.kafka.coders.MessageDecoderFactory;
+import com.linkedin.camus.etl.kafka.common.EtlKey;
+import com.linkedin.camus.etl.kafka.common.EtlRequest;
+import com.linkedin.camus.etl.kafka.common.LeaderInfo;
+import com.linkedin.camus.workallocater.CamusRequest;
+import com.linkedin.camus.workallocater.WorkAllocator;
 
 
 /**
@@ -89,7 +99,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
 
   public static boolean reportJobFailureDueToOffsetOutOfRange = false;
   public static boolean reportJobFailureUnableToGetOffsetFromKafka = false;
-  public static boolean reportJobFailureDueToLeaderNotAvailable = false;
 
   private static Logger log = null;
 
@@ -339,7 +348,6 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
               log.info("Skipping the creation of ETL request for Topic : " + topicMetadata.topic()
                   + " and Partition : " + partitionMetadata.partitionId() + " Exception : "
                   + ErrorMapping.exceptionFor(partitionMetadata.errorCode()));
-              reportJobFailureDueToLeaderNotAvailable = true;
             } else {
               if (partitionMetadata.errorCode() != ErrorMapping.NoError()) {
                 log.warn("Receiving non-fatal error code, Continuing the creation of ETL request for Topic : "
@@ -377,10 +385,10 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
       }
     });
 
+    log.info("The requests from kafka metadata are: \n" + finalRequests);
     writeRequests(finalRequests, context);
     Map<CamusRequest, EtlKey> offsetKeys = getPreviousOffsets(FileInputFormat.getInputPaths(context), context);
     Set<String> moveLatest = getMoveToLatestTopicsSet(context);
-    String camusRequestEmailMessage = "";
     for (CamusRequest request : finalRequests) {
       if (moveLatest.contains(request.getTopic()) || moveLatest.contains("all")) {
         log.info("Moving to latest for topic: " + request.getTopic());
@@ -430,16 +438,8 @@ public class EtlInputFormat extends InputFormat<EtlKey, CamusWrapper> {
                     " to start processing from earliest kafka metadata offset.");
           reportJobFailureDueToOffsetOutOfRange = true;
         }
-      } else if (3 * (request.getOffset() - request.getEarliestOffset())
-          < request.getLastOffset() - request.getOffset()) {
-        camusRequestEmailMessage +=
-                "The current offset is too close to the earliest offset, Camus might be falling behind: "
-                    + request + "\n";
       }
       log.info(request);
-    }
-    if(!Strings.isNullOrEmpty(camusRequestEmailMessage)) {
-      EmailClient.sendEmail(camusRequestEmailMessage);
     }
 
     writePrevious(offsetKeys.values(), context);

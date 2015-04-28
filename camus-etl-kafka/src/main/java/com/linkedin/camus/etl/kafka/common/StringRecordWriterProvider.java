@@ -81,7 +81,7 @@ public class StringRecordWriterProvider implements RecordWriterProvider {
 
     // Get the filename for this RecordWriter.
     Path path =
-        new Path(committer.getWorkPath() + camusWrapper.getOutputPrefix(), EtlMultiOutputFormat.getUniqueFile(context, fileName, getFilenameExtension()));
+        new Path(committer.getWorkPath(), EtlMultiOutputFormat.getUniqueFile(context, fileName, getFilenameExtension()));
 
     FileSystem fs = path.getFileSystem(context.getConfiguration());
     if (!isCompressed) {

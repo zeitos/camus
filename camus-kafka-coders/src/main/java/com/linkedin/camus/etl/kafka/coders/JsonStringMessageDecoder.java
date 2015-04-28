@@ -3,7 +3,6 @@ package com.linkedin.camus.etl.kafka.coders;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.linkedin.camus.coders.CamusWrapper;
-import com.linkedin.camus.coders.Message;
 import com.linkedin.camus.coders.MessageDecoder;
 import org.apache.log4j.Logger;
 import org.joda.time.DateTime;
@@ -33,7 +32,7 @@ import java.util.Properties;
  * This MessageDecoder returns a CamusWrapper that works with Strings payloads,
  * since JSON data is always a String.
  */
-public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
+public class JsonStringMessageDecoder extends MessageDecoder<byte[], String> {
   private static final org.apache.log4j.Logger log = Logger.getLogger(JsonStringMessageDecoder.class);
 
   // Property for format of timestamp in JSON timestamp field.
@@ -42,16 +41,13 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
 
   // Property for the JSON field name of the timestamp.
   public static final String CAMUS_MESSAGE_TIMESTAMP_FIELD = "camus.message.timestamp.field";
-  public static final String CAMUS_MESSAGE_OUTPUT_PARTITIONER_FIELD = "camus.message.output.partitioner.field";
   public static final String DEFAULT_TIMESTAMP_FIELD = "timestamp";
-  public static final String DEFAULT_PARITIONER_FIELD = "type";
 
   JsonParser jsonParser = new JsonParser();
   DateTimeFormatter dateTimeParser = ISODateTimeFormat.dateTimeParser();
 
   private String timestampFormat;
   private String timestampField;
-  private String partitionerField;
 
   @Override
   public void init(Properties props, String topicName) {
@@ -60,21 +56,19 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
 
     timestampFormat = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FORMAT, DEFAULT_TIMESTAMP_FORMAT);
     timestampField = props.getProperty(CAMUS_MESSAGE_TIMESTAMP_FIELD, DEFAULT_TIMESTAMP_FIELD);
-    partitionerField = props.getProperty(CAMUS_MESSAGE_OUTPUT_PARTITIONER_FIELD, DEFAULT_PARITIONER_FIELD);
   }
 
   @Override
-  public CamusWrapper<String> decode(Message message) {
+  public CamusWrapper<String> decode(byte[] payload) {
     long timestamp = 0;
     String payloadString;
-    String partitionField = "";
     JsonObject jsonObject;
 
     try {
-      payloadString = new String(message.getPayload(), "UTF-8");
+      payloadString = new String(payload, "UTF-8");
     } catch (UnsupportedEncodingException e) {
       log.error("Unable to load UTF-8 encoding, falling back to system default", e);
-      payloadString = new String(message.getPayload());
+      payloadString = new String(payload);
     }
 
     // Parse the payload into a JsonObject.
@@ -85,9 +79,6 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
       throw new RuntimeException(e);
     }
 
-    if (jsonObject.has(partitionerField)) {
-      partitionField = jsonObject.get(partitionerField).getAsString();
-    }
     // Attempt to read and parse the timestamp element into a long.
     if (jsonObject.has(timestampField)) {
       // If timestampFormat is 'unix_seconds',
@@ -137,6 +128,6 @@ public class JsonStringMessageDecoder extends MessageDecoder<Message, String> {
       timestamp = System.currentTimeMillis();
     }
 
-    return new CamusWrapper<String>(payloadString, timestamp, partitionField);
+    return new CamusWrapper<String>(payloadString, timestamp);
   }
 }

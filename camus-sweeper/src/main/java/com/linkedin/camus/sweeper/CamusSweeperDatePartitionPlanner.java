@@ -2,6 +2,7 @@ package com.linkedin.camus.sweeper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
@@ -16,7 +17,7 @@ import com.linkedin.camus.sweeper.utils.DateUtils;
 
 
 public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner {
-  private static final Logger LOG = Logger.getLogger(CamusSweeperDatePartitionPlanner.class);
+  private static final Logger _log = Logger.getLogger(CamusSweeperDatePartitionPlanner.class);
 
   private DateTimeFormatter dayFormatter;
   private DateUtils dUtils;
@@ -33,6 +34,20 @@ public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner {
     String inputDirStr = inputDir.toString();
     String dateStr = datePathStr.substring(datePathStr.indexOf(inputDirStr) + inputDirStr.length());
     return dayFormatter.parseDateTime(dateStr.replaceAll("^/", ""));
+  }
+
+  private String pathListToCommaSeperated(List<Path> list) {
+    ArrayList<Path> tmpList = new ArrayList<Path>();
+    tmpList.addAll(list);
+
+    StringBuilder sb = new StringBuilder(tmpList.get(0).toString());
+    tmpList.remove(0);
+
+    for (Path p : tmpList) {
+      sb.append(",").append(p.toString());
+    }
+
+    return sb.toString();
   }
 
   @Override
@@ -61,27 +76,22 @@ public class CamusSweeperDatePartitionPlanner extends CamusSweeperPlanner {
         jobProps.put("dest.path", destPath.toString());
 
         if (!fs.exists(destPath)) {
-          LOG.info(topic + " dest dir " + destPath.toString() + " doesn't exist or . Processing.");
+          _log.info(topic + " dest dir " + destPath.toString() + " doesn't exist or . Processing.");
           jobPropsList.add(jobProps);
         } else if (shouldReprocess(fs, sourcePaths, destPath)) {
-          LOG.info(topic + " dest dir " + destPath.toString() + " has a modified time before the source. Reprocessing.");
+          _log.info(topic + " dest dir " + destPath.toString()
+              + " has a modified time before the source. Reprocessing.");
           sourcePaths.add(destPath);
           jobProps.put("input.paths", pathListToCommaSeperated(sourcePaths));
           jobPropsList.add(jobProps);
         } else {
-          LOG.info(topic + " skipping " + destPath.toString());
+          _log.info(topic + " skipping " + destPath.toString());
         }
       }
     }
 
     return jobPropsList;
 
-  }
-
-  @Override
-  protected List<Properties> createSweeperJobProps(String topic, Path inputDir, Path outputDir, FileSystem fs,
-      CamusSweeperMetrics metrics) throws IOException {
-    return createSweeperJobProps(topic, inputDir, outputDir, fs);
   }
 
 }
