@@ -85,10 +85,7 @@ public class JsonWrappedStringMessageDecoder extends MessageDecoder<Message, Str
     if (payloadJsonObject.has(partitionerField)) {
       partition = payloadJsonObject.get(partitionerField).getAsString();
     }
-    log.error("wrapped Using partitioner" + partition);
     messageJsonObject.addProperty("timestamp", timestamp);
-
-    messageJsonObject.addProperty(partitionerField, partition);
 
     return new CamusWrapper<String>(messageJsonObject.toString(), timestamp, partition);
   }
